@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#071316">
+  <title>R&S — Private Space</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Used only when the browser can decode the recorded audio and the user taps Download MP3. -->
+  <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
+</head>
+<body>
+  <div id="app" class="app-viewport">
+    <div id="toast" class="toast-container hidden" role="alert" aria-live="polite"></div>
+    <div id="connectionBanner" class="connection-banner hidden">Reconnecting to secure channel…</div>
+
+    <section id="loginScreen" class="screen active">
+      <div class="login-orb orb-one"></div>
+      <div class="login-orb orb-two"></div>
+      <div class="login-card glass-panel">
+        <div class="login-brand-wrap">
+          <div class="brand-mark">R<span>&</span>S</div>
+          <div>
+            <h1 class="brand-title">Private Space</h1>
+            <p class="brand-subtitle">A quiet place for two.</p>
+          </div>
+        </div>
+
+        <div id="identityStep" class="login-step">
+          <div class="step-heading"><span>01</span><div><strong>Choose identity</strong><small>Select who is entering</small></div></div>
+          <div class="identity-grid">
+            <button id="identityCardFirst" class="identity-card" type="button" aria-label="Select first identity">
+              <span class="identity-ring"><img id="pfpFirstCard" class="pfp-card" src="" alt="First identity"></span>
+              <span id="nameFirstCard" class="identity-name">---</span>
+              <span class="identity-hint">Enter as this identity</span>
+            </button>
+            <button id="identityCardSecond" class="identity-card" type="button" aria-label="Select second identity">
+              <span class="identity-ring"><img id="pfpSecondCard" class="pfp-card" src="" alt="Second identity"></span>
+              <span id="nameSecondCard" class="identity-name">---</span>
+              <span class="identity-hint">Enter as this identity</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="passwordStep" class="login-step hidden">
+          <button id="btnBackToIdentities" class="btn-back" type="button" aria-label="Back to identity selection">← <span>Back</span></button>
+          <div class="selected-identity-preview">
+            <div class="pfp-password-ring"><img id="passwordAvatar" class="pfp-password" src="" alt="Selected avatar"></div>
+            <h2 id="passwordIdentityName" class="selected-name">---</h2>
+            <span class="selected-caption">Protected entry</span>
+          </div>
+          <form id="passwordForm" class="password-form" onsubmit="return false;">
+            <label class="field-label" for="passwordInput">Password</label>
+            <div class="input-password-wrapper">
+              <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="current-password" required>
+              <button id="btnTogglePassword" type="button" class="btn-icon-inline" aria-label="Toggle password visibility">◉</button>
+            </div>
+            <div id="passwordError" class="auth-error hidden" role="alert">Incorrect password. Please try again.</div>
+            <button id="btnLoginSubmit" type="submit" class="btn-aqua-submit"><span>Enter Space</span><span class="submit-arrow">→</span></button>
+          </form>
+        </div>
+      </div>
+      <div class="login-footnote">End-to-end style private room • 2 identities</div>
+    </section>
+
+    <section id="chatScreen" class="screen hidden">
+      <header class="chat-header">
+        <div id="selectionToolbar" class="selection-toolbar hidden">
+          <button id="btnCancelSelection" class="btn-icon" aria-label="Cancel selection">×</button>
+          <span id="selectionTitle" class="selection-title">1 Selected</span>
+          <div class="selection-actions">
+            <button id="btnReplySelected" class="btn-icon" aria-label="Reply">↩</button>
+            <button id="btnCopySelected" class="btn-icon" aria-label="Copy">⧉</button>
+            <button id="btnEditSelected" class="btn-icon hidden" aria-label="Edit">✎</button>
+            <button id="btnDeleteSelected" class="btn-icon danger-icon" aria-label="Delete">⌫</button>
+          </div>
+        </div>
+
+        <div id="normalHeader" class="header-normal">
+          <div class="user-meta">
+            <div class="avatar-status-wrap">
+              <img id="counterpartPfp" class="pfp-toolbar" src="" alt="Counterpart avatar">
+              <span id="counterpartStatusDot" class="status-dot offline"></span>
+            </div>
+            <div class="user-text">
+              <h2 id="counterpartName" class="counterpart-name">---</h2>
+              <span id="counterpartStatus" class="counterpart-status">Offline</span>
+              <span id="counterpartTypingIndicator" class="activity-indicator typing-indicator hidden" aria-live="polite"><span class="typing-dots"><i></i><i></i><i></i></span> <span>typing…</span></span>
+              <span id="counterpartRecordingIndicator" class="activity-indicator recording-indicator-text hidden" aria-live="polite">Recording voice…</span>
+            </div>
+          </div>
+          <button id="btnThreeDots" class="btn-icon" aria-label="Open menu">⋮</button>
+        </div>
+
+        <div id="threeDotsMenu" class="dropdown-menu hidden">
+          <button id="btnOpenMediaGallery" class="menu-item" type="button">▧ <span>Media Gallery</span></button>
+          <button id="btnOpenVoiceGallery" class="menu-item" type="button">◖ <span>Voice Gallery</span></button>
+          <button id="btnClearHistory" class="menu-item menu-danger hidden" type="button">⌫ <span>Clear Chat History</span></button>
+        </div>
+      </header>
+
+      <main id="chatMessages" class="chat-messages-container" aria-label="Message stream">
+        <div id="messagesLoading" class="loading-spinner-container">
+          <div class="spinner"></div>
+          <span>Loading secure messages…</span>
+        </div>
+        <div id="emptyChatState" class="empty-state hidden">
+          <div class="empty-icon">✦</div>
+          <p>No messages yet</p>
+          <span>Send a message or media file to start the conversation.</span>
+        </div>
+        <div id="messagesList" class="messages-list"></div>
+        <button id="btnJumpToLatest" class="jump-to-latest hidden" type="button" aria-label="Jump to latest messages">↓ Latest messages</button>
+      </main>
+
+      <div id="floatingReactionPicker" class="floating-reaction-picker hidden" aria-label="Quick reactions">
+        <button class="reaction-emoji-btn" data-emoji="❤️" type="button">❤️</button>
+        <button class="reaction-emoji-btn" data-emoji="😂" type="button">😂</button>
+        <button class="reaction-emoji-btn" data-emoji="👍" type="button">👍</button>
+        <button class="reaction-emoji-btn" data-emoji="😮" type="button">😮</button>
+        <button class="reaction-emoji-btn" data-emoji="😢" type="button">😢</button>
+        <button class="reaction-emoji-btn" data-emoji="🔥" type="button">🔥</button>
+        <button id="btnMoreReactions" class="reaction-more-btn" type="button" aria-label="More reactions" title="More reactions">+</button>
+      </div>
+
+      <footer class="chat-footer">
+        <div id="replyPreviewBanner" class="context-banner reply-banner hidden">
+          <div class="context-accent"></div><div class="context-content"><span id="replyTargetAuthor" class="context-title">Replying to…</span><p id="replyTargetText" class="context-text">---</p></div>
+          <button id="btnCancelReply" class="btn-icon-sm" aria-label="Cancel reply">×</button>
+        </div>
+        <div id="editPreviewBanner" class="context-banner edit-banner hidden">
+          <div class="context-accent"></div><div class="context-content"><span class="context-title">Editing message</span><p id="editTargetText" class="context-text">---</p></div>
+          <button id="btnCancelEdit" class="btn-icon-sm" aria-label="Cancel edit">×</button>
+        </div>
+
+        <div id="normalComposer" class="composer-bar">
+          <button id="btnAttachMedia" class="btn-icon-composer" type="button" aria-label="Attach image or video" title="Photo or video">＋</button>
+          <input type="file" id="mediaFileInput" accept="image/*,video/*" multiple class="hidden">
+          <button id="btnAttachFile" class="btn-icon-composer btn-file-attach" type="button" aria-label="Attach document or any file" title="Document or file">▤</button>
+          <input type="file" id="documentFileInput" class="hidden">
+          <div class="text-input-wrapper"><textarea id="messageTextArea" rows="1" placeholder="Write a message…" maxlength="4000"></textarea></div>
+          <button id="btnMicRecord" class="btn-icon-composer mic-button" type="button" aria-label="Record voice">◉</button>
+          <button id="btnSendMessage" class="btn-send hidden" type="button" aria-label="Send message">➤</button>
+        </div>
+
+        <div id="recordingComposer" class="recording-bar hidden">
+          <div class="recording-left"><span class="recording-pulse-indicator"></span><span id="recordingTimer" class="recording-time">0:00</span><span class="recording-label">Recording</span></div>
+          <div class="recording-wave-mini" aria-hidden="true"></div>
+          <div class="recording-actions">
+            <button id="btnDiscardRecord" class="btn-icon-danger" type="button" aria-label="Discard recording">×</button>
+            <button id="btnPauseResumeRecord" class="btn-icon" type="button" aria-label="Pause or resume recording">Ⅱ</button>
+            <button id="btnSendRecord" class="btn-send-record" type="button" aria-label="Send recording">➤</button>
+          </div>
+        </div>
+      </footer>
+    </section>
+
+    <div id="mediaPreviewOverlay" class="modal-overlay hidden">
+      <div class="modal-container preview-modal">
+        <header class="modal-header"><button id="btnCancelMediaPreview" class="btn-icon" type="button" aria-label="Cancel">×</button><span class="modal-title">Send Media</span><div class="header-spacer"></div></header>
+        <main class="media-preview-body">
+          <div id="previewMediaWrapper" class="preview-stage"><img id="imagePreviewElement" class="preview-element hidden" alt="Image preview"><video id="videoPreviewElement" class="preview-element hidden" controls playsinline></video></div>
+          <div id="imageEditorBar" class="image-editor-bar hidden"><button id="btnRotateImage" class="btn-editor" type="button">↻ <span>Rotate</span></button></div>
+        </main>
+        <footer class="modal-footer preview-footer"><button id="btnConfirmSendMedia" class="btn-aqua-submit" type="button"><span>Send Media</span><span>➤</span></button></footer>
+      </div>
+    </div>
+
+    <div id="fileUploadPreviewOverlay" class="modal-overlay hidden">
+      <div class="modal-container file-preview-modal">
+        <header class="modal-header"><button id="btnCancelFilePreview" class="btn-icon" type="button" aria-label="Cancel file upload">×</button><span class="modal-title">Send file</span><div class="header-spacer"></div></header>
+        <main class="file-preview-body">
+          <div id="filePreviewIcon" class="file-type-icon">FILE</div>
+          <div class="file-preview-name-wrap"><strong id="filePreviewName" class="file-preview-name">Selected file</strong><span id="filePreviewDetails" class="file-preview-details">Ready to upload</span></div>
+          <p class="file-preview-note">The file will be stored privately. The other person can download it from the chat.</p>
+        </main>
+        <footer class="modal-footer preview-footer file-preview-footer"><button id="btnConfirmSendFile" class="btn-aqua-submit" type="button"><span>Send file</span><span>➤</span></button></footer>
+      </div>
+    </div>
+
+    <div id="fullscreenViewerOverlay" class="modal-overlay media-viewer-overlay hidden">
+      <header class="viewer-header"><button id="btnCloseFullscreen" class="btn-icon" type="button" aria-label="Close viewer">×</button><span id="fullscreenTitle" class="viewer-title">Media</span><a id="btnDownloadFullscreen" class="viewer-download" download aria-label="Download media">↓</a></header>
+      <main class="viewer-body"><img id="fullscreenImage" class="fullscreen-media hidden" alt="Fullscreen media"><video id="fullscreenVideo" class="fullscreen-media hidden" controls playsinline></video></main>
+    </div>
+
+    <div id="mediaGalleryOverlay" class="modal-overlay hidden"><div class="modal-container gallery-modal"><header class="modal-header"><button id="btnCloseMediaGallery" class="btn-icon" type="button" aria-label="Close">×</button><span class="modal-title">Shared Media</span><div class="header-spacer"></div></header><main id="mediaGalleryGrid" class="gallery-grid-body"><p class="empty-state">No shared media yet</p></main></div></div>
+
+    <div id="voiceGalleryOverlay" class="modal-overlay hidden"><div class="modal-container gallery-modal"><header class="modal-header"><button id="btnCloseVoiceGallery" class="btn-icon" type="button" aria-label="Close">×</button><span class="modal-title">Shared Voices</span><div class="header-spacer"></div></header><main id="voiceGalleryList" class="voice-gallery-list-body"><p class="empty-state">No voice messages yet</p></main></div></div>
+
+    <div id="reactionDetailsModal" class="modal-overlay hidden"><div class="modal-container dialog-modal"><header class="modal-header"><span class="modal-title">Reactions</span><button id="btnCloseReactionDetails" class="btn-icon" type="button" aria-label="Close">×</button></header><main id="reactionDetailsList" class="dialog-body"></main></div></div>
+
+    <div id="allReactionsModal" class="modal-overlay hidden"><div class="modal-container emoji-picker-modal"><header class="modal-header"><button id="btnCloseAllReactions" class="btn-icon" type="button" aria-label="Close">×</button><span class="modal-title">Choose a reaction</span><div class="header-spacer"></div></header><main class="emoji-picker-body"><emoji-picker id="allEmojiPicker" class="full-emoji-picker"></emoji-picker></main></div></div>
+
+    <div id="deleteChoicesModal" class="modal-overlay hidden"><div class="modal-container dialog-modal"><header class="modal-header"><span class="modal-title">Delete Message</span><button id="btnCancelDeleteDialog" class="btn-icon" type="button" aria-label="Close">×</button></header><main class="dialog-body"><p class="dialog-text">Choose how you want to remove this message.</p><div class="dialog-actions-vertical"><button id="btnDeleteForMe" class="btn-dialog-option" type="button">Delete for me</button><button id="btnDeleteForEveryone" class="btn-dialog-option btn-dialog-danger" type="button">Delete for everyone</button></div></main></div></div>
+
+    <div id="clearHistoryModal" class="modal-overlay hidden"><div class="modal-container dialog-modal"><header class="modal-header"><span class="modal-title">Clear Chat History?</span><button id="btnCancelClearHistory" class="btn-icon" type="button" aria-label="Close">×</button></header><main class="dialog-body"><p class="dialog-text">This clears the entire conversation and stored media for both people.</p><div class="dialog-actions-vertical"><button id="btnConfirmClearHistory" class="btn-dialog-option btn-dialog-danger" type="button">Clear History</button></div></main></div></div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
